@@ -1,7 +1,7 @@
 from flask_restful import Resource
 
 #from flaskr.tasks import convertir, convertirMod
-from models.modelos import db, Usuario, usuario_schema, Conversion, conversion_schema, conversiones_schema
+from flaskr.models.modelos import db, Usuario, usuario_schema, Conversion, conversion_schema, conversiones_schema
 from flask import request, send_from_directory
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required
 from flask_jwt_extended import get_jwt_identity
