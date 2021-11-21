@@ -1,14 +1,18 @@
 from flask_restful import Resource
 
-#from flaskr.tasks import convertir, convertirMod
+# from flaskr.tasks import convertir, convertirMod
 from flaskr.models.modelos import db, Usuario, usuario_schema, Conversion, conversion_schema, conversiones_schema
+from flaskr.storage.storage import *
 from flask import request, send_from_directory
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required
 from flask_jwt_extended import get_jwt_identity
 import os
 from datetime import date
+import time
 
-formatos = ["mp3","ogg","wav"]
+formatos = ["mp3", "ogg", "wav"]
+
+
 class RecursoUsuario(Resource):
     def post(self):
         if not "username" in request.json:
@@ -44,8 +48,8 @@ class RecursoLogin(Resource):
             password=request.json['password']).all()
         if usuarioBD:
             return {
-                'token': create_access_token(identity=usuarioBD[0].id)
-            }, 200
+                       'token': create_access_token(identity=usuarioBD[0].id)
+                   }, 200
         else:
             return {"ok": False, "msg": "wrong credentials"}, 400
 
@@ -65,33 +69,32 @@ class RecursoTareas(Resource):
         if not "newFormat" in request.form:
             return {'ok': False, 'msg': 'newFormat is required'}
         if not request.form['newFormat'] in formatos:
-            return {"ok": False, 'msg':'new Format only support the following types: mp3,ogg,wav'}
+            return {"ok": False, 'msg': 'new Format only support the following types: mp3,ogg,wav'}
         f = request.files['fileName']
         txt = f.filename.split('.')
         extension = txt[1]
         name = txt[0]
         if not extension in formatos:
-            return {"ok": False, 'msg':'file only support the following types: mp3,ogg,wav'}
-
-        #f.save(os.path.join(app.config['UPLOAD_FOLDER'], f.filename))
+            return {"ok": False, 'msg': 'file only support the following types: mp3,ogg,wav'}
 
         nueva_conversion = Conversion(nombre=name,
                                       origen=extension,
                                       destino=request.form['newFormat'],
                                       estado="uploaded",
                                       usuario_id=usuario,
-                                      fecha= str(date.today())
+                                      fecha=str(date.today())
                                       )
         db.session.add(nueva_conversion)
         db.session.commit()
         response = conversion_schema.dump(nueva_conversion)
 
+        f.filename = "origin-{}-{}.{}".format(usuario, response["id"], extension)
         f.save(
-                "/nfs/general/originales/origin-{}-{}.{}".format(usuario, response["id"], extension)
-                )
-        f.filename = "origin-{}-{}.{}".format(usuario, response["id"],
-                                              extension)
-        #convertir(f, extension, request.form['newFormat'], response["id"])
+            "flaskr/originales/{}".format(f.filename)
+        )
+        object_name = get_object_name(f.filename)
+        upload_file("flaskr/originales/{}".format(f.filename), 'uniandes-bucket-s3', object_name, 'us-east-1')
+        remove_file("flaskr/originales/{}".format(f.filename))
         return conversion_schema.dump(nueva_conversion)
 
 
@@ -105,29 +108,27 @@ class RecursoTarea(Resource):
     def put(self, id_conversion):
         usuario = get_jwt_identity()
         if not request.json['newFormat'] in formatos:
-            return {"ok": False, 'msg':'only support the following types: mp3,ogg,wav'}
+            return {"ok": False, 'msg': 'only support the following types: mp3,ogg,wav'}
         task = Conversion.query.get_or_404(id_conversion)
         if task:
             if task.estado == 'processed':
-                if os.path.exists("/nfs/general/originales/destino-{}-{}.{}".format(
-                        usuario, id_conversion, task.destino)):
-                    os.remove("/nfs/general/originales/destino-{}-{}.{}".format(
-                        usuario, id_conversion, task.destino))
+                if find_object('uniandes-bucket-s3','us-east-1',"destino-{}-{}.{}".format(usuario, id_conversion, task.destino)):
+                    delete_object('uniandes-bucket-s3','us-east-1',"destino-{}-{}.{}".format(usuario, id_conversion, task.destino))
                 else:
                     print("The file does not exist")
             task.destino = request.json['newFormat']
             task.estado = "uploaded"
             db.session.commit()
-            #with open("originales/origin-{}-{}.{}".format(usuario, task.id ,task.origen)) as f:
+            # with open("originales/origin-{}-{}.{}".format(usuario, task.id ,task.origen)) as f:
             #    data = f.read()
-            #f=open("originales/origin-{}-{}.{}".format(usuario, task.id ,task.origen)).read()
+            # f=open("originales/origin-{}-{}.{}".format(usuario, task.id ,task.origen)).read()
             try:
-                ruta = "/nfs/general/originales/origin-{}-{}.{}".format(usuario, task.id ,task.origen)
-                rutaDestino = ruta.replace('origin-','destino-')
-                #convertirMod.delay("originales/origin-{}-{}.{}".format(usuario, task.id ,task.origen),
-                #rutaDestino,task.origen,task.destino,id_conversion)
+                ruta = "/nfs/general/originales/origin-{}-{}.{}".format(usuario, task.id, task.origen)
+                rutaDestino = ruta.replace('origin-', 'destino-')
+                # convertirMod.delay("originales/origin-{}-{}.{}".format(usuario, task.id ,task.origen),
+                # rutaDestino,task.origen,task.destino,id_conversion)
             except:
-                return {"ok":False, "msg":"task not exist"}
+                return {"ok": False, "msg": "task not exist"}
             return conversion_schema.dump(task)
         else:
             return {"ok": False, "msg": "task not exist"}
@@ -137,14 +138,15 @@ class RecursoTarea(Resource):
         task = Conversion.query.get_or_404(id_conversion)
         db.session.delete(task)
         db.session.commit()
-        return {"ok":True, "msg":"task removed"}
+        return {"ok": True, "msg": "task removed"}
 
 
 class RecursoDescargar(Resource):
     @jwt_required()
     def get(self, name):
         try:
-            return send_from_directory("/nfs/general/originales/",
+            downloading_files('flaskr/originales/{}'.format(name), 'uniandes-bucket-s3', name, 'us-east-1')
+            return send_from_directory("originales/",
                                        path=name,
                                        as_attachment=True)
         except:
