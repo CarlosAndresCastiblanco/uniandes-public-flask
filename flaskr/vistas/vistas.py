@@ -93,8 +93,10 @@ class RecursoTareas(Resource):
             "flaskr/originales/{}".format(f.filename)
         )
         object_name = get_object_name(f.filename)
-        upload_file("flaskr/originales/{}".format(f.filename), 'uniandes-bucket-s3', object_name, 'us-east-1')
+        upload_file("flaskr/originales/{}".format(f.filename), object_name)
         remove_file("flaskr/originales/{}".format(f.filename))
+        send_message_queue('firstqueue','autor','1','first Hi!!!!!!! message')
+        receive_and_delete_messages_queue()
         return conversion_schema.dump(nueva_conversion)
 
 
@@ -112,8 +114,8 @@ class RecursoTarea(Resource):
         task = Conversion.query.get_or_404(id_conversion)
         if task:
             if task.estado == 'processed':
-                if find_object('uniandes-bucket-s3','us-east-1',"destino-{}-{}.{}".format(usuario, id_conversion, task.destino)):
-                    delete_object('uniandes-bucket-s3','us-east-1',"destino-{}-{}.{}".format(usuario, id_conversion, task.destino))
+                if find_object("destino-{}-{}.{}".format(usuario, id_conversion, task.destino)):
+                    delete_object("destino-{}-{}.{}".format(usuario, id_conversion, task.destino))
                 else:
                     print("The file does not exist")
             task.destino = request.json['newFormat']
@@ -123,7 +125,7 @@ class RecursoTarea(Resource):
             #    data = f.read()
             # f=open("originales/origin-{}-{}.{}".format(usuario, task.id ,task.origen)).read()
             try:
-                ruta = "/nfs/general/originales/origin-{}-{}.{}".format(usuario, task.id, task.origen)
+                ruta = "flaskr/originales/origin-{}-{}.{}".format(usuario, task.id, task.origen)
                 rutaDestino = ruta.replace('origin-', 'destino-')
                 # convertirMod.delay("originales/origin-{}-{}.{}".format(usuario, task.id ,task.origen),
                 # rutaDestino,task.origen,task.destino,id_conversion)
@@ -145,7 +147,7 @@ class RecursoDescargar(Resource):
     @jwt_required()
     def get(self, name):
         try:
-            downloading_files('flaskr/originales/{}'.format(name), 'uniandes-bucket-s3', name, 'us-east-1')
+            downloading_files('flaskr/originales/{}'.format(name), name)
             return send_from_directory("originales/",
                                        path=name,
                                        as_attachment=True)

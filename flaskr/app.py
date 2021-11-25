@@ -1,10 +1,13 @@
-from flaskr import create_app
-from .vistas import RecursoDescargar, RecursoLogin, RecursoTarea, RecursoTareas, RecursoUsuario
-from .models import db, Usuario
+from flaskr.vistas.vistas import RecursoDescargar, RecursoLogin, RecursoTarea, RecursoTareas, RecursoUsuario
+from flaskr.models.modelos import db, Usuario
 from flask_restful import Api
 from flask_jwt_extended import JWTManager
+from flask import Flask
+import os
 
-app = create_app('default')
+settings_module = os.getenv('APP_SETTINGS_MODULE')
+app = Flask(__name__, instance_relative_config=True)
+app.config.from_object(settings_module)
 app_context = app.app_context()
 app_context.push()
 
