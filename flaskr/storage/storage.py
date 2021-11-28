@@ -131,7 +131,7 @@ def existing_queue():
 def send_message_queue(title,author,weeks,message):
 
     # Get the service resource
-    sqs = boto3.resource('sqs')
+    sqs = boto3.resource('sqs',region_name=sso_region)
 
     # Get the queue. This returns an SQS.Queue instance
     queue = sqs.get_queue_by_name(QueueName=queue_name)
