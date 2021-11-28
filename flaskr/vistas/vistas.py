@@ -94,8 +94,8 @@ class RecursoTareas(Resource):
         )
         object_name = get_object_name(f.filename)
         upload_file("flaskr/originales/{}".format(f.filename), object_name)
-        remove_file("flaskr/originales/{}".format(f.filename))
         send_message_queue(response["id"],usuario,'1',extension+","+request.form['newFormat'])
+        remove_file("flaskr/originales/{}".format(f.filename))
         return conversion_schema.dump(nueva_conversion)
 
 

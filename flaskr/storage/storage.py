@@ -87,6 +87,7 @@ def get_object_name(file_name):
 def remove_file(file_name):
     if os.path.exists(file_name):
         os.remove(file_name)
+        print('Delete file '+file_name)
     else:
         print('No se pudo remover el archivo')
         return 'No se pudo remover el archivo', 500
